@@ -1,7 +1,7 @@
-import { Request, RequestHandle } from "../../modules/host/class/Request";
-import { CLIENT_ID, CLIENT_SECRET } from "../../private/configs/spotify";
 import { request } from "https";
 import { stringify } from "querystring";
+import { Request, RequestHandle } from "../../modules/host/class/Request";
+import { CLIENT_ID, CLIENT_SECRET } from "../../private/configs/spotify";
 
 export = async (handle: Request): Promise<Partial<RequestHandle>> => {
     let redirect_uri = "spotify.lukesrw.co.uk/login/";
