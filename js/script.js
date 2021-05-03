@@ -12,7 +12,8 @@ var auth = {
 var user;
 var header;
 var main;
-var id_to_playlist = {};
+var url_to_items = {};
+var id_to_playlist = null;
 
 /**
  *
@@ -24,12 +25,20 @@ var id_to_playlist = {};
 function getAll(options, callback, items) {
     if (typeof items === "undefined") items = [];
 
+    if (Object.prototype.hasOwnProperty.call(url_to_items, options.url)) {
+        return callback(null, url_to_items[options.url]);
+    }
+
     return request(options, function (error, response) {
         if (error) return callback(error);
 
         items = items.concat(response.items);
 
-        if (items.length === response.total) return callback(null, items);
+        if (items.length === response.total) {
+            url_to_items[options.url] = items;
+
+            return callback(null, items);
+        }
 
         options.data = options.data || {};
         options.data.offset = response.offset || options.data.offset || 0;
@@ -50,8 +59,6 @@ function getAllArtists(artists, callback, items) {
 
     if (artists.length === 0) return callback(null, items);
 
-    console.log(artists);
-
     return request(
         {
             data: {
@@ -70,60 +77,6 @@ function getAllArtists(artists, callback, items) {
             );
         }
     );
-}
-
-/**
- * @param {string} id playlist id
- * @returns {void}
- */
-function getPlaylistArtists(id) {
-    var artists = [];
-
-    $(main).empty();
-
-    id_to_playlist[id].tracks.forEach(function (track) {
-        track.track.artists.forEach(function (artist) {
-            if (artists.indexOf(artist.id) === -1) {
-                artists.push(artist.id);
-            }
-        });
-    });
-
-    return getAllArtists(artists, function (error, artists) {
-        main.appendChild(
-            $.create({
-                children: artists.map(function (artist) {
-                    var image = {};
-                    if (artist.images.length) {
-                        image = {
-                            loading: "lazy",
-                            src: artist.images[0].url,
-                            tag: "img"
-                        };
-                    }
-
-                    return {
-                        children: [
-                            {
-                                children: [
-                                    image,
-                                    {
-                                        innerText: artist.name,
-                                        tag: "span"
-                                    }
-                                ],
-                                href: "javascript:void 0",
-                                tag: "a"
-                            }
-                        ],
-                        tag: "li"
-                    };
-                }),
-                className: "img-list",
-                tag: "ul"
-            })
-        );
-    });
 }
 
 /**
@@ -156,9 +109,9 @@ function getPlaylist(id) {
                                 href: "javascript:void 0",
                                 innerText: "Get Artists",
                                 onclick: function (e) {
-                                    getPlaylistArtists(
+                                    id_to_playlist[
                                         e.target.closest("a").dataset.id
-                                    );
+                                    ].getArtists();
                                 },
                                 tag: "a"
                             }
@@ -177,14 +130,7 @@ function getPlaylist(id) {
             url: "https://api.spotify.com/v1/playlists/" + id + "/tracks"
         },
         function (error, tracks) {
-            if (error) {
-                return main.appendChild(
-                    $.create({
-                        innerText: "Unable to retrieve playlist tracks",
-                        tag: "span"
-                    })
-                );
-            }
+            if (error) window.location.href = "..";
 
             id_to_playlist[id].tracks = tracks;
             getPlaylist(id);
@@ -193,11 +139,120 @@ function getPlaylist(id) {
 }
 
 /**
+ * @param {string} properties for playlist
+ * @returns {Playlist} instance
+ */
+function Playlist(properties) {
+    var that = this;
+
+    Object.keys(properties).forEach(function (key) {
+        that[key] = properties[key];
+    });
+
+    that._getArtists = null;
+    that.getArtists = function () {
+        var artists = [];
+
+        if (that._getArtists) {
+            $(main).empty();
+
+            return main.appendChild(
+                $.create({
+                    children: that._getArtists.map(function (artist) {
+                        var image = {};
+                        if (artist.images.length) {
+                            image = {
+                                loading: "lazy",
+                                src: artist.images[0].url,
+                                tag: "img"
+                            };
+                        }
+
+                        return {
+                            children: [
+                                {
+                                    children: [
+                                        image,
+                                        {
+                                            innerText: artist.name,
+                                            tag: "span"
+                                        }
+                                    ],
+                                    href: "javascript:void 0",
+                                    tag: "a"
+                                }
+                            ],
+                            tag: "li"
+                        };
+                    }),
+                    className: "img-list",
+                    tag: "ul"
+                })
+            );
+        }
+
+        id_to_playlist[that.id].tracks.forEach(function (track) {
+            track.track.artists.forEach(function (artist) {
+                if (artists.indexOf(artist.id) === -1) {
+                    artists.push(artist.id);
+                }
+            });
+        });
+
+        return getAllArtists(artists, function (error, artists) {
+            that._getArtists = artists;
+            that.getArtists();
+        });
+    };
+}
+
+/**
  *
  * @returns {void}
  */
 function getPlaylists() {
-    $(main).empty();
+    if (id_to_playlist) {
+        $(main).empty();
+
+        return main.appendChild(
+            $.create({
+                children: Object.values(id_to_playlist).map(function (
+                    playlist
+                ) {
+                    return {
+                        children: [
+                            {
+                                children: [
+                                    {
+                                        loading: "lazy",
+                                        src: playlist.images[0].url,
+                                        tag: "img"
+                                    },
+                                    {
+                                        innerText: playlist.name,
+                                        tag: "span"
+                                    }
+                                ],
+                                dataset: {
+                                    id: playlist.id
+                                },
+                                href: "javascript:void 0",
+                                onclick: function (e) {
+                                    getPlaylist(
+                                        e.target.closest("a").dataset.id
+                                    );
+                                },
+                                tag: "a"
+                            }
+                        ],
+                        tag: "li"
+                    };
+                }),
+                className: "img-list",
+                tag: "ul"
+            })
+        );
+    }
 
     return getAll(
         {
@@ -208,57 +263,19 @@ function getPlaylists() {
             url: "https://api.spotify.com/v1/me/playlists"
         },
         function (error, playlists) {
-            if (error) {
-                return main.appendChild(
-                    $.create({
-                        innerText: "Unable to retrieve playlists",
-                        tag: "span"
-                    })
-                );
-            }
+            if (error) window.location.href = "..";
 
-            return main.appendChild(
-                $.create({
-                    children: playlists
-                        .filter(function (playlist) {
-                            return playlist.owner.id === user.id;
-                        })
-                        .map(function (playlist) {
-                            id_to_playlist[playlist.id] = playlist;
+            id_to_playlist = {};
 
-                            return {
-                                children: [
-                                    {
-                                        children: [
-                                            {
-                                                loading: "lazy",
-                                                src: playlist.images[0].url,
-                                                tag: "img"
-                                            },
-                                            {
-                                                innerText: playlist.name,
-                                                tag: "span"
-                                            }
-                                        ],
-                                        dataset: {
-                                            id: playlist.id
-                                        },
-                                        href: "javascript:void 0",
-                                        onclick: function (e) {
-                                            getPlaylist(
-                                                e.target.closest("a").dataset.id
-                                            );
-                                        },
-                                        tag: "a"
-                                    }
-                                ],
-                                tag: "li"
-                            };
-                        }),
-                    className: "img-list",
-                    tag: "ul"
+            playlists
+                .filter(function (playlist) {
+                    return playlist.owner.id === user.id;
                 })
-            );
+                .forEach(function (playlist) {
+                    id_to_playlist[playlist.id] = new Playlist(playlist);
+                });
+
+            getPlaylists();
         }
     );
 }
@@ -276,9 +293,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 url: "https://api.spotify.com/v1/me/"
             },
             function (error, _user) {
-                if (error) {
-                    window.location.href = "..";
-                }
+                if (error) window.location.href = "..";
 
                 user = _user;
 
