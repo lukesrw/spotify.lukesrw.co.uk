@@ -14,9 +14,9 @@ var header;
 var main;
 var url_to_items = {};
 var id_to_playlist = null;
+var id_to_artist = null;
 
 /**
- *
  * @param {object} options request options
  * @param {function} callback to complete
  * @param {object[]} items collected
@@ -36,16 +36,30 @@ function getAll(options, callback, items) {
 
         if (items.length === response.total) {
             url_to_items[options.url] = items;
-
-            return callback(null, items);
+        } else {
+            options.data = options.data || {};
+            options.data.offset = response.offset || options.data.offset || 0;
+            options.data.offset += options.data.limit || response.limit;
         }
-
-        options.data = options.data || {};
-        options.data.offset = response.offset || options.data.offset || 0;
-        options.data.offset += options.data.limit || response.limit;
 
         return getAll(options, callback, items);
     });
+}
+
+/**
+ *
+ * @param {object} properties for artist
+ * @returns {Artist} instance
+ */
+function Artist(properties) {
+    var that = this;
+
+    Object.keys(properties).forEach(function (key) {
+        that[key] = properties[key];
+    });
+
+    that._getAlbums = null;
+    that.getAlbums = function () {};
 }
 
 /**
@@ -69,6 +83,11 @@ function getAllArtists(artists, callback, items) {
         },
         function (error, _artists) {
             if (error) return callback(error);
+
+            id_to_artist = id_to_artist || {};
+            _artists.artists.forEach(function (artist) {
+                id_to_artist[artist.id] = new Artist(artist);
+            });
 
             return getAllArtists(
                 artists,
