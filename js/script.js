@@ -58,8 +58,28 @@ function Artist(properties) {
         that[key] = properties[key];
     });
 
+    this.load_state = "UNLOADED";
+
     that._getAlbums = null;
-    that.getAlbums = function () {};
+    that.getAlbums = function (callback) {
+        if (this._getAlbums) return callback(null, this._getAlbums);
+
+        this.load_state = "PENDING";
+
+        return getAll(
+            {
+                data: {},
+                headers: auth,
+                url: "https://api.spotify.com/v1/artists/{id}/albums"
+            },
+            function (albums) {
+                this._getAlbums = albums;
+                this.load_state = "LOADED";
+
+                return this.getAlbums();
+            }
+        );
+    };
 }
 
 /**
@@ -87,6 +107,7 @@ function getAllArtists(artists, callback, items) {
             id_to_artist = id_to_artist || {};
             _artists.artists.forEach(function (artist) {
                 id_to_artist[artist.id] = new Artist(artist);
+                id_to_artist[artist.id].load();
             });
 
             return getAllArtists(
