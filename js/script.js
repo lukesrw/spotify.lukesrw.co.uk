@@ -3,6 +3,7 @@
 "use strict";
 
 var MAX_ARTISTS = 50;
+var LPM_SPLIT = "|LPMSPLIT|";
 
 var url = new URLSearchParams(window.location.search);
 var auth = {
@@ -80,6 +81,8 @@ function Artist(properties) {
             }
         );
     };
+
+    that.load = function () {};
 }
 
 /**
@@ -157,12 +160,40 @@ function getPlaylist(id) {
                             }
                         ],
                         tag: "li"
+                    },
+                    {
+                        children: [
+                            ,
+                            {
+                                dataset: {
+                                    id: id
+                                },
+                                href: "javascript:void 0",
+                                innerText: "Find Duplicates",
+                                onclick: function (e) {
+                                    var anchor = e.target.closest("a");
+
+                                    id_to_playlist[
+                                        anchor.dataset.id
+                                    ].findDuplicates(anchor);
+                                },
+                                tag: "a"
+                            }
+                        ],
+                        tag: "li"
                     }
                 ],
                 tag: "ul"
             })
         );
     }
+
+    main.appendChild(
+        $.create({
+            innerText: "Loading...",
+            tag: "span"
+        })
+    );
 
     return getAll(
         {
@@ -199,7 +230,7 @@ function Playlist(properties) {
             return main.appendChild(
                 $.create({
                     children: that._getArtists.map(function (artist) {
-                        var image = {};
+                        var image = null;
                         if (artist.images.length) {
                             image = {
                                 loading: "lazy",
@@ -243,6 +274,79 @@ function Playlist(properties) {
             that._getArtists = artists;
             that.getArtists();
         });
+    };
+
+    that.findDuplicates = function (target) {
+        var map_to_track = {};
+        var duplicates_found = false;
+
+        id_to_playlist[that.id].tracks.forEach(function (track) {
+            var name = track.track.name.toLowerCase();
+
+            track.track.artists.forEach(function (artist) {
+                var map = artist.name + LPM_SPLIT + name;
+
+                if (!Object.prototype.hasOwnProperty.call(map_to_track, map)) {
+                    map_to_track[map] = [];
+                }
+
+                map_to_track[map].push(track);
+            });
+        });
+
+        for (var map in map_to_track) {
+            if (map_to_track[map].length > 1) {
+                if (duplicates_found === false) {
+                    $(main).empty();
+                    duplicates_found = true;
+                }
+
+                main.appendChild(
+                    $.create({
+                        innerText:
+                            map_to_track[map][0].track.name +
+                            " by " +
+                            map.split(LPM_SPLIT)[0],
+                        tag: "h3"
+                    })
+                );
+
+                main.appendChild(
+                    $.create({
+                        children: map_to_track[map].map(function (track) {
+                            return $.create({
+                                children: [
+                                    {
+                                        loading: "lazy",
+                                        src: track.track.album.images[0].url,
+                                        tag: "img"
+                                    },
+                                    {
+                                        innerText: track.track.name,
+                                        tag: "span"
+                                    }
+                                ],
+                                tag: "li"
+                            });
+                        }),
+                        className: "img-list",
+                        tag: "ul"
+                    })
+                );
+
+                console.log(map_to_track[map]);
+            }
+        }
+
+        if (!duplicates_found) {
+            target.parentElement.replaceChild(
+                $.create({
+                    innerText: "No Duplicates",
+                    tag: "i"
+                }),
+                target
+            );
+        }
     };
 }
 
